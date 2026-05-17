@@ -7,9 +7,11 @@ services:
     environment:
       - "FACTORIO_VERSION=stable"
       - "RCON_PASS"
+      - "RCON_PORT=27015"
     ports:
       - "80:80"
       - "34197:34197/udp"
+      - "27015:27015/tcp"
     volumes:
       - "./fsm-data:/opt/fsm-data"
       - "./factorio-data/saves:/opt/factorio/saves"

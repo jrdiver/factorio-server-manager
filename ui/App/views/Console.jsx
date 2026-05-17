@@ -1,11 +1,27 @@
 import Panel from "../components/Panel";
 import React, {useEffect, useRef, useState} from "react";
 import socket from "../../api/socket";
+import server from "../../api/resources/server";
 
-const Console = ({serverStatus}) => {
+const Console = ({serverStatus: initialStatus}) => {
 
+    const [serverStatus, setServerStatus] = useState(initialStatus);
     const [logs, setLogs] = useState([]);
     const consoleInput = useRef(null);
+
+    // Fetch current status on mount and poll every 3 seconds independently
+    useEffect(() => {
+        server.status().then(setServerStatus).catch(() => {});
+        const interval = setInterval(() => {
+            server.status().then(setServerStatus).catch(() => {});
+        }, 3000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Keep in sync with parent prop updates too
+    useEffect(() => {
+        if (initialStatus != null) setServerStatus(initialStatus);
+    }, [initialStatus]);
 
     useEffect(() => {
 
@@ -27,7 +43,7 @@ const Console = ({serverStatus}) => {
         <Panel
             title="Console"
             content={
-                serverStatus.running
+                serverStatus?.running
                     ? <>
                         <ul>
                             {logs?.map((log, i) => (<li key={i}>{log}</li>))}

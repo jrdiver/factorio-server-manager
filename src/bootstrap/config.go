@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gorilla/securecookie"
@@ -177,6 +178,21 @@ func (config *Config) loadServerConfig() {
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&config)
 	failOnError(err, "Error decoding JSON config file.")
+
+	// Re-derive paths that depend on FactorioDir, since conf.json may have set
+	// factorio_dir after mapFlags already computed these using the default "./".
+	if !filepath.IsAbs(config.FactorioBinary) {
+		config.FactorioBinary = filepath.Join(config.FactorioDir, config.FactorioBinary)
+		if runtime.GOOS == "windows" && !strings.HasSuffix(config.FactorioBinary, ".exe") {
+			config.FactorioBinary += ".exe"
+		}
+	}
+	if !filepath.IsAbs(config.FactorioSavesDir) {
+		config.FactorioSavesDir = filepath.Join(config.FactorioDir, config.FactorioSavesDir)
+	}
+	if !filepath.IsAbs(config.FactorioModsDir) {
+		config.FactorioModsDir = filepath.Join(config.FactorioDir, config.FactorioModsDir)
+	}
 
 	if !filepath.IsAbs(config.SettingsFile) {
 		config.SettingsFile = filepath.Join(config.FactorioConfigDir, config.SettingsFile)

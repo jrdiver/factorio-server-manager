@@ -8,9 +8,9 @@ import Select from "../components/Select";
 import Input from "../components/Input";
 import Error from "../components/Error";
 
-const Controls = ({serverStatus}) => {
+const Controls = ({serverStatus, refreshServerStatus}) => {
 
-    const factorioVersion = serverStatus.fac_version ? serverStatus.fac_version : 'Unknown';
+    const factorioVersion = serverStatus?.fac_version ? serverStatus.fac_version : 'Unknown';
     const [saves, setSaves] = useState([]);
     const [isDisabled, setIsDisabled] = useState(true);
     const [isStopping, setIsStopping] = useState(false);
@@ -21,18 +21,38 @@ const Controls = ({serverStatus}) => {
 
     const startServer = async (data) => {
         setIsStarting(true);
-        await server.start(data.ip, parseInt(data.port), data.save);
+        try {
+            await server.start(data.ip, parseInt(data.port), data.save);
+        } finally {
+            setIsStarting(false);
+            await refreshServerStatus();
+        }
     }
 
     const stopServer = async () => {
         setIsStopping(true);
-        await server.stop();
+        try {
+            await server.stop();
+        } finally {
+            setIsStopping(false);
+            await refreshServerStatus();
+        }
     }
 
     const killServer = async () => {
         setIsKilling(true);
-        await server.kill();
+        try {
+            await server.kill();
+        } finally {
+            setIsKilling(false);
+            await refreshServerStatus();
+        }
     }
+
+    // Always fetch current status on mount so the page is fresh
+    useEffect(() => {
+        refreshServerStatus();
+    }, []);
 
     useEffect(() => {
         savesResource.list(true)
@@ -51,7 +71,7 @@ const Controls = ({serverStatus}) => {
             title="Server Status"
             content={
                 <div className="lg:flex">
-                    { serverStatus.running
+                    { serverStatus?.running
                         ? <>
                             <div className="lg:w-1/5 mb-2">
                                 <div className="font-bold">Status</div>
@@ -125,7 +145,7 @@ const Controls = ({serverStatus}) => {
             }
             actions={
                 <div className="md:flex">
-                    {serverStatus.running
+                    {serverStatus?.running
                         ? <>
                             <Button onClick={stopServer} isLoading={isStopping} isDisabled={isKilling} size="sm" className="w-full md:w-auto mb-2 md:mb-0 md:mr-2" type="default">Save & Stop Server</Button>
                             <Button onClick={killServer} isLoading={isKilling} isDisabled={isStopping} size="sm" type="danger" className="w-full md:w-auto">Kill Server</Button>

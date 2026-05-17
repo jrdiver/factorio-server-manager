@@ -93,7 +93,10 @@ function connect() {
     }
 
     socket.onopen = e => {
-        registerEventEmitter(socket)
+        registerEventEmitter(socket);
+        // Re-subscribe to rooms on every (re)connect so events aren't missed
+        // if the socket opens after the subscription emit was already fired.
+        serverStatusSubscribeEvent();
     }
 }
 

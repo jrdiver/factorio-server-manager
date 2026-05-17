@@ -19,3 +19,6 @@ mix-manifest.json
 .vscode
 .env
 *.db
+*.log
+config/server-adminlist.json
+config/server-settings.json
