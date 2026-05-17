@@ -1,6 +1,6 @@
 module github.com/OpenFactorioServerManager/factorio-server-manager
 
-go 1.18
+go 1.25.0
 
 require (
 	github.com/OpenFactorioServerManager/rcon v0.0.0-20120923215419-8fbb8268b60a
@@ -15,8 +15,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.8.4
 	github.com/syndtr/goleveldb v1.0.0
-	golang.org/x/crypto v0.14.0
-	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/crypto v0.51.0
+	golang.org/x/net v0.54.0 // indirect
 	gorm.io/gorm v1.25.5
 )
 
@@ -31,7 +31,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

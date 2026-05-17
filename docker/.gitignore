@@ -1,4 +1,5 @@
 /fsm-data
 /factorio-data
 docker-compose.dev.yaml
+docker-compose.release.yaml
 .env

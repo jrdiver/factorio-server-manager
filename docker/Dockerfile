@@ -7,13 +7,13 @@ COPY app/index.html ./app/index.html
 RUN npm install && npm run build
 
 # Stage 2: Build Go binary
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 WORKDIR /build
 COPY src/ ./src/
 RUN cd src && CGO_ENABLED=0 GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o /build/factorio-server-manager .
 
 # Stage 3: Runtime — glibc is required for Factorio Server binaries to run
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ENV FACTORIO_VERSION=stable \
     RCON_PASS="" \
@@ -23,7 +23,7 @@ VOLUME /opt/fsm-data /opt/factorio/saves /opt/factorio/mods /opt/factorio/config
 
 EXPOSE 80/tcp 34197/udp 27015/tcp
 
-RUN apt-get update && apt-get install -y curl tar xz-utils jq && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get install -y curl tar xz-utils jq && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
 RUN mkdir -p /opt/fsm/app
