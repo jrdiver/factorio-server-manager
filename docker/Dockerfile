@@ -1,5 +1,5 @@
 # Stage 1: Build frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 WORKDIR /build
 COPY package.json webpack.config.js tailwind.config.js ./
 COPY ui/ ./ui/
@@ -7,7 +7,7 @@ COPY app/index.html ./app/index.html
 RUN npm install && npm run build
 
 # Stage 2: Build Go binary
-FROM golang:1.21-alpine AS backend-builder
+FROM golang:1.24-alpine AS backend-builder
 WORKDIR /build
 COPY src/ ./src/
 RUN cd src && CGO_ENABLED=0 GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o /build/factorio-server-manager .

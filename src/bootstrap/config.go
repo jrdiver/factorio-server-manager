@@ -31,6 +31,7 @@ type Flags struct {
 	GlibcLibLoc        string `long:"glibc-lib-loc" default:"/opt/glibc-2.18/lib" description:"Location of glibc lib folder (ex. /opt/glibc-2.18/lib)." env:"FSM_GLIBC_LIB"`
 	Autostart          string `long:"autostart" default:"false" description:"Autostart factorio server on bootup of FSM, default false [true/false]." env:"FSM_AUTOSTART"`
 	ModPackDir         string `long:"mod-pack-dir" default:"./mod_packs" description:"Directory to store mod packs." env:"FSM_MODPACK_DIR"`
+	AdminPassword      string `long:"admin-password" default:"" description:"Set the initial admin password (only used when no users exist yet)." env:"FSM_ADMIN_PASSWORD"`
 }
 
 type Config struct {
@@ -65,6 +66,7 @@ type Config struct {
 	ConsoleLogFile          string `json:"console_log_file,omitempty"`
 	ChatLogFile             string `json:"chat_log_file,omitempty"` // separate log file for chat (incl join/quit)
 	Secure                  bool   `json:"secure"`                  // set to `false` to use this tool without SSL/TLS (Default: `true`)
+	AdminPassword           string `json:"-"`                       // initial admin password, only used when no users exist yet
 }
 
 // set Configs default values. JSON unmarshal will replace when it found something different
@@ -222,6 +224,7 @@ func randomPort() int {
 
 func (config *Config) mapFlags(flags Flags) {
 	config.Autostart = flags.Autostart
+	config.AdminPassword = flags.AdminPassword
 	config.GlibcCustom = flags.GlibcCustom
 	config.GlibcLocation = flags.GlibcLocation
 	config.GlibcLibLoc = flags.GlibcLibLoc

@@ -57,7 +57,16 @@ func SetupAuth() {
 
 	if userCount == 0 {
 		// no user created yet, create a default one
-		var password = bootstrap.GenerateRandomPassword()
+		var password string
+		if config.AdminPassword != "" {
+			password = config.AdminPassword
+			log.Println("Creating default admin user with password from FSM_ADMIN_PASSWORD.")
+		} else {
+			password = bootstrap.GenerateRandomPassword()
+			log.Println("Created default admin user. Please change it's password as soon as possible.")
+			log.Printf("Username: %s", "admin")
+			log.Printf("Password: %s", password)
+		}
 
 		var user User
 		user.Username = "admin"
@@ -69,10 +78,6 @@ func SetupAuth() {
 			log.Printf("Error adding admin user to db: %s", err)
 			panic(err)
 		}
-
-		log.Println("Created default admin user. Please change it's password as soon as possible.")
-		log.Printf("Username: %s", user.Username)
-		log.Printf("Password: %s", password)
 	}
 }
 
@@ -245,7 +250,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		} else {
 			log.Printf("Unauthenticated request %s %s %s", r.Method, r.Host, r.RequestURI)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			http.Error(w, "User not found", http.StatusUnauthorized)
 			return
 		}
 	})

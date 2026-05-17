@@ -1,9 +1,10 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/OpenFactorioServerManager/factorio-server-manager/api/websocket"
 	"github.com/OpenFactorioServerManager/factorio-server-manager/factorio"
-	"net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -90,35 +91,35 @@ func NewRouter() *mux.Router {
 		Name("Login").
 		Handler(http.StripPrefix("/login", http.FileServer(http.Dir("./app/"))))
 
-	subRouter.Path("/saves").
+	mainRouter.Path("/saves").
 		Methods("GET").
 		Name("Saves").
 		Handler(http.StripPrefix("/saves", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/mods").
+	mainRouter.Path("/mods").
 		Methods("GET").
 		Name("Mods").
 		Handler(http.StripPrefix("/mods", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/server-settings").
+	mainRouter.Path("/server-settings").
 		Methods("GET").
 		Name("Server settings").
 		Handler(http.StripPrefix("/server-settings", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/game-settings").
+	mainRouter.Path("/game-settings").
 		Methods("GET").
 		Name("Game settings").
 		Handler(http.StripPrefix("/game-settings", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/console").
+	mainRouter.Path("/console").
 		Methods("GET").
 		Name("Console").
 		Handler(http.StripPrefix("/console", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/logs").
+	mainRouter.Path("/logs").
 		Methods("GET").
 		Name("Logs").
 		Handler(http.StripPrefix("/logs", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/user-management").
+	mainRouter.Path("/user-management").
 		Methods("GET").
 		Name("User management").
 		Handler(http.StripPrefix("/user-management", http.FileServer(http.Dir("./app/"))))
-	subRouter.Path("/help").
+	mainRouter.Path("/help").
 		Methods("GET").
 		Name("Help").
 		Handler(http.StripPrefix("/help", http.FileServer(http.Dir("./app/"))))
