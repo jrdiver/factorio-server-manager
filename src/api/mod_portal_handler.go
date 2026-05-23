@@ -93,6 +93,42 @@ func ModPortalInstallHandler(w http.ResponseWriter, r *http.Request) {
 	resp = mods.ListInstalledMods()
 }
 
+func ModPortalInstallWithDepsHandler(w http.ResponseWriter, r *http.Request) {
+	var err error
+	var resp interface{}
+
+	defer func() {
+		WriteResponse(w, resp)
+	}()
+
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+
+	var data struct {
+		DownloadURL string `json:"downloadUrl"`
+		Filename    string `json:"fileName"`
+		ModName     string `json:"modName"`
+	}
+	resp, err = ReadFromRequestBody(w, r, &data)
+	if err != nil {
+		return
+	}
+
+	mods, resp, err := CreateNewMods(w)
+	if err != nil {
+		return
+	}
+
+	err = mods.InstallModWithDeps(data.DownloadURL, data.Filename, data.ModName, nil)
+	if err != nil {
+		resp = fmt.Sprintf("Error installing mod with dependencies: %s", err)
+		log.Println(resp)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	resp = mods.ListInstalledMods()
+}
+
 func ModPortalLoginHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var resp interface{}
@@ -185,26 +221,63 @@ func ModPortalInstallMultipleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mods that are built into Factorio or are DLC — cannot/should not be downloaded.
+	skipMods := map[string]bool{
+		"base": true, "quality": true, "elevated-rails": true, "space-age": true,
+	}
+
+	// Snapshot of currently installed mods: name → filename on disk.
+	// Used to skip re-downloading mods that are already at the correct version.
+	installedByName := make(map[string]string)
+	for _, m := range modList.ModInfoList.Mods {
+		installedByName[m.Name] = m.FileName
+	}
+
+	// Build the set of wanted mod names (excluding builtins).
+	wantedNames := make(map[string]bool)
 	for _, datum := range data {
-		// skip base mod because it is already included in factorio
-		if datum.Name == "base" {
+		if !skipMods[datum.Name] {
+			wantedNames[datum.Name] = true
+		}
+	}
+
+	// Remove mods that are currently installed but not present in the save.
+	for name := range installedByName {
+		if !wantedNames[name] {
+			if delErr := modList.DeleteMod(name); delErr != nil {
+				log.Printf("ModPortalInstallMultiple: could not remove unwanted mod %s: %s", name, delErr)
+			}
+		}
+	}
+
+	visited := make(map[string]bool)
+
+	for _, datum := range data {
+		if skipMods[datum.Name] {
 			continue
 		}
 		details, err, statusCode := factorio.ModPortalModDetails(datum.Name)
 		if err != nil || statusCode != http.StatusOK {
-			resp = fmt.Sprintf("Error in getting mod details from mod portal: %s", err)
-			log.Println(resp)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+			log.Printf("Warning: could not fetch portal details for %s (%d): %s – skipping", datum.Name, statusCode, err)
+			continue
 		}
 
-		//find correct mod-version
+		// Find the release matching the save's version (compare first 3 parts).
 		var found = false
 		for _, release := range details.Releases {
-			if release.Version.Equals(datum.Version) {
+			if release.Version[0] == datum.Version[0] &&
+				release.Version[1] == datum.Version[1] &&
+				release.Version[2] == datum.Version[2] {
 				found = true
 
-				err := modList.DownloadMod(release.DownloadURL, release.FileName, details.Name)
+				// Already installed at the correct version — skip the download.
+				if installedByName[datum.Name] == release.FileName {
+					log.Printf("ModPortalInstallMultiple: %s already at correct version (%s), skipping", datum.Name, datum.Version)
+					visited[datum.Name] = true
+					break
+				}
+
+				err := modList.InstallModWithDeps(release.DownloadURL, release.FileName, details.Name, visited)
 				if err != nil {
 					resp = fmt.Sprintf("Error downloading mod {%s}, error: %s", details.Name, err)
 					log.Println(resp)
@@ -215,8 +288,7 @@ func ModPortalInstallMultipleHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !found {
-			log.Printf("Error downloading mod {%s}, error: %s", details.Name, "version not found")
-			w.WriteHeader(http.StatusInternalServerError)
+			log.Printf("Warning: version %s of mod %s not found on portal – skipping", datum.Version, datum.Name)
 		}
 	}
 

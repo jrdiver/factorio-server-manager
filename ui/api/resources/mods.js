@@ -60,8 +60,14 @@ const mods = {
                 modName
             });
             return response.data
-        },
-        list: async () => {
+        },        installWithDeps: async (downloadUrl, fileName, modName) => {
+            const response = await client.post('/api/mods/portal/install/withdeps', {
+                downloadUrl,
+                fileName,
+                modName
+            });
+            return response.data;
+        },        list: async () => {
             const response = await client.get('/api/mods/portal/list');
             return response.data
         },

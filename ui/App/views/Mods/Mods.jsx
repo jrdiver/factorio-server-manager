@@ -21,15 +21,30 @@ const Mods = ({serverStatus}) => {
     const [fuse, setFuse] = useState(undefined);
     const [isDeletingAllMods, setIsDeletingAllMods] = useState(false);
     const [isUpdatingAllMods, setIsUpdatingAllMods] = useState(false);
+    const [isUpdatingSelectedMods, setIsUpdatingSelectedMods] = useState(false);
     const [updatableMods, setUpdatableMods] = useState([]);
+    const [selectedModNames, setSelectedModNames] = useState({});
+    const [updateProgress, setUpdateProgress] = useState({current: 0, total: 0});
 
     const addUpdatableMod = mod => {
-        setUpdatableMods(mods => [...mods, mod])
+        // Upsert by modName — prevents duplicates when useEffect re-fires after each refresh.
+        setUpdatableMods(prev => [...prev.filter(m => m.modName !== mod.modName), mod]);
+        setSelectedModNames(names => ({...names, [mod.modName]: true}));
+    };
+
+    const toggleModSelection = name => {
+        setSelectedModNames(prev => {
+            const next = {...prev};
+            next[name] ? delete next[name] : (next[name] = true);
+            return next;
+        });
     };
 
     const fetchInstalledMods = () => {
         modsResource.installed()
-            .then(setInstalledMods);
+            .then(mods => setInstalledMods(
+                [...mods].sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}))
+            ));
     };
 
     const fetchModPacks = () => {
@@ -44,17 +59,33 @@ const Mods = ({serverStatus}) => {
             .finally(() => setIsDeletingAllMods(false))
     }
 
-    const updateAllMods = () => {
+    const updateAllMods = async () => {
         setIsUpdatingAllMods(true);
-
-        let promises = [];
-        for (const updatableMod of updatableMods) {
-            promises.push(modsResource.update(updatableMod))
+        setUpdateProgress({current: 0, total: updatableMods.length});
+        for (let i = 0; i < updatableMods.length; i++) {
+            await modsResource.update(updatableMods[i]).catch(err => console.error('Update failed:', err));
+            setUpdateProgress({current: i + 1, total: updatableMods.length});
         }
+        setUpdatableMods([]);
+        setSelectedModNames({});
+        fetchInstalledMods();
+        setIsUpdatingAllMods(false);
+        setUpdateProgress({current: 0, total: 0});
+    }
 
-        Promise.all(promises)
-            .then(fetchInstalledMods)
-            .finally(() => setIsUpdatingAllMods(false));
+    const updateSelectedMods = async () => {
+        setIsUpdatingSelectedMods(true);
+        const toUpdate = updatableMods.filter(m => selectedModNames[m.modName]);
+        setUpdateProgress({current: 0, total: toUpdate.length});
+        for (let i = 0; i < toUpdate.length; i++) {
+            await modsResource.update(toUpdate[i]).catch(err => console.error('Update failed:', err));
+            setUpdateProgress({current: i + 1, total: toUpdate.length});
+        }
+        setUpdatableMods([]);
+        setSelectedModNames({});
+        fetchInstalledMods();
+        setIsUpdatingSelectedMods(false);
+        setUpdateProgress({current: 0, total: 0});
     }
 
     useEffect(() => {
@@ -139,6 +170,8 @@ const Mods = ({serverStatus}) => {
                              mods={installedMods}
                              factorioVersion={factorioVersion}
                              disabled={disabled}
+                             selectedModNames={selectedModNames}
+                             toggleModSelection={toggleModSelection}
                     />
                 }
                 actions={
@@ -149,8 +182,18 @@ const Mods = ({serverStatus}) => {
                                     onClick={deleteAllMods}>Delete all Mods</Button> &&
                             <Button size="sm" className="mr-2" isLoading={isUpdatingAllMods}
                                     onClick={updateAllMods}>Update all Mods</Button>
-                        }
-                        <a className="bg-gray-light py-1 px-2 hover:glow-orange hover:bg-orange inline-block accentuated text-black font-bold"
+                        }                        {
+                            !disabled && Object.keys(selectedModNames).length > 0 &&
+                            <Button size="sm" className="mr-2" isLoading={isUpdatingSelectedMods}
+                                    onClick={updateSelectedMods}>
+                                Update Selected ({Object.keys(selectedModNames).length})
+                            </Button>
+                        }                        {
+                            (isUpdatingAllMods || isUpdatingSelectedMods) && updateProgress.total > 0 &&
+                            <span className="text-sm mr-2 text-white">
+                                {updateProgress.current}/{updateProgress.total} updated
+                            </span>
+                        }                        <a className="bg-gray-light py-1 px-2 hover:glow-orange hover:bg-orange inline-block accentuated text-black font-bold"
                            href={modsResource.downloadAllURL}>Download all Mods</a>
                     </>
                 }

@@ -27,7 +27,7 @@ func (af *archiveFile) Close() error {
 	return nil
 }
 
-// openNames contains a list of all. Will stop searching at the first occurance
+// openNames contains a list of all. Will stop searching at the first occurrence
 func OpenArchiveFile(path string, openNames ...string) (r io.ReadCloser, err error) {
 	archive, err := zip.OpenReader(path)
 	if err != nil {
@@ -207,6 +207,14 @@ func (h *SaveHeader) ReadFrom(r io.Reader) (err error) {
 		h.Stats, err = h.readStats(r)
 		if err != nil {
 			return fmt.Errorf("read Stats: %v", err)
+		}
+	}
+
+	// Factorio 2.0 inserted 6 bytes between AllowedCommands and the mod list.
+	// Observed layout across multiple 2.0.x saves: 2 unknown bytes + 4 unknown bytes.
+	if !h.FactorioVersion.Less(Version{2, 0, 0, 0}) {
+		if _, err = r.Read(scratch[:6]); err != nil {
+			return fmt.Errorf("read 2.0 extra header fields: %v", err)
 		}
 	}
 

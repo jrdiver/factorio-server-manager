@@ -14,6 +14,9 @@ const Button = ({ children, type, onClick, isSubmit, className, size, isLoading,
         case 'danger':
             color = `bg-red ${isDisabled || isLoading ? null : "hover:glow-red hover:bg-red-light"}`;
             break;
+        case 'warning':
+            color = `bg-orange ${isDisabled || isLoading ? null : "hover:glow-orange hover:bg-orange-light"}`;
+            break;
         default:
             color = `bg-gray-light ${isDisabled || isLoading ? null : "hover:glow-orange hover:bg-orange"}`
     }

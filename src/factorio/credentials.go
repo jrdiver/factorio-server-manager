@@ -1,13 +1,18 @@
 package factorio
 
 import (
-	"encoding/json"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
-	"io/ioutil"
+	"io"
 	"log"
-	"os"
 
 	"github.com/OpenFactorioServerManager/factorio-server-manager/bootstrap"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type Credentials struct {
@@ -15,61 +20,149 @@ type Credentials struct {
 	Userkey  string `json:"userkey"`
 }
 
-func (credentials *Credentials) Save() error {
-	var err error
+type credentialRecord struct {
+	gorm.Model
+	Username         string
+	EncryptedUserkey string
+}
+
+func getCredentialDB() (*gorm.DB, error) {
 	config := bootstrap.GetConfig()
-	credentialsJson, err := json.Marshal(credentials)
+	db, err := gorm.Open(sqlite.Open(config.SQLiteDatabaseFile), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		log.Printf("error mashalling the credentials: %s", err)
+		return nil, err
+	}
+	if err := db.AutoMigrate(&credentialRecord{}); err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+func getEncryptionKey() ([]byte, error) {
+	config := bootstrap.GetConfig()
+	key, err := base64.StdEncoding.DecodeString(config.CookieEncryptionKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(key) < 16 {
+		return nil, errors.New("encryption key too short for AES")
+	}
+	if len(key) > 32 {
+		key = key[:32]
+	}
+	return key, nil
+}
+
+func encryptValue(key []byte, plaintext string) (string, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+func decryptValue(key []byte, encoded string) (string, error) {
+	ciphertext, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "", errors.New("ciphertext too short")
+	}
+	plaintext, err := gcm.Open(nil, ciphertext[:nonceSize], ciphertext[nonceSize:], nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
+func (credentials *Credentials) Save() error {
+	db, err := getCredentialDB()
+	if err != nil {
+		log.Printf("error opening credential db: %s", err)
 		return err
 	}
 
-	err = ioutil.WriteFile(config.FactorioCredentialsFile, credentialsJson, 0664)
+	key, err := getEncryptionKey()
 	if err != nil {
-		log.Printf("error on saving the credentials. %s", err)
+		log.Printf("error getting encryption key: %s", err)
 		return err
 	}
 
-	return nil
+	encryptedKey, err := encryptValue(key, credentials.Userkey)
+	if err != nil {
+		log.Printf("error encrypting userkey: %s", err)
+		return err
+	}
+
+	var record credentialRecord
+	result := db.First(&record)
+	if result.Error != nil {
+		record = credentialRecord{
+			Username:         credentials.Username,
+			EncryptedUserkey: encryptedKey,
+		}
+		return db.Create(&record).Error
+	}
+	return db.Model(&record).Updates(map[string]interface{}{
+		"username":          credentials.Username,
+		"encrypted_userkey": encryptedKey,
+	}).Error
 }
 
 func (credentials *Credentials) Load() (bool, error) {
-	var err error
-	config := bootstrap.GetConfig()
-	if _, err := os.Stat(config.FactorioCredentialsFile); os.IsNotExist(err) {
+	db, err := getCredentialDB()
+	if err != nil {
+		log.Printf("error opening credential db: %s", err)
+		return false, err
+	}
+
+	var record credentialRecord
+	if err := db.First(&record).Error; err != nil {
 		return false, nil
 	}
 
-	fileBytes, err := ioutil.ReadFile(config.FactorioCredentialsFile)
+	key, err := getEncryptionKey()
 	if err != nil {
-		credentials.Del()
-		log.Printf("error reading CredentialsFile: %s", err)
 		return false, err
 	}
 
-	err = json.Unmarshal(fileBytes, credentials)
+	userkey, err := decryptValue(key, record.EncryptedUserkey)
 	if err != nil {
-		credentials.Del()
-		log.Printf("error on unmarshal credentials_file: %s", err)
+		log.Printf("error decrypting userkey: %s", err)
 		return false, err
 	}
 
-	if credentials.Userkey != "" && credentials.Username != "" {
-		return true, nil
-	} else {
-		credentials.Del()
-		return false, errors.New("incredients incomplete")
-	}
+	credentials.Username = record.Username
+	credentials.Userkey = userkey
+	return true, nil
 }
 
 func (credentials *Credentials) Del() error {
-	var err error
-	config := bootstrap.GetConfig()
-	err = os.Remove(config.FactorioCredentialsFile)
+	db, err := getCredentialDB()
 	if err != nil {
-		log.Printf("error delete the credentialfile: %s", err)
+		log.Printf("error opening credential db: %s", err)
 		return err
 	}
-
-	return nil
+	return db.Unscoped().Where("1 = 1").Delete(&credentialRecord{}).Error
 }

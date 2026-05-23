@@ -363,5 +363,12 @@ func LoadModsFromSaveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(header.Mods) == 0 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		resp = "save returned an empty mod list — the save format may be unsupported or the file is corrupt"
+		log.Println(resp)
+		return
+	}
+
 	resp = header
 }

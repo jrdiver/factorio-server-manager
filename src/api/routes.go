@@ -283,6 +283,12 @@ var apiRoutes = Routes{
 		ModPortalInstallHandler,
 		true,
 	}, {
+		"ModPortalInstallModWithDeps",
+		"POST",
+		"/mods/portal/install/withdeps",
+		ModPortalInstallWithDepsHandler,
+		true,
+	}, {
 		"ModPortalLogin",
 		"POST",
 		"/mods/portal/login",

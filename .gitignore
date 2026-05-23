@@ -21,3 +21,4 @@ mix-manifest.json
 *.db
 *.log
 config/
+gameSaves/

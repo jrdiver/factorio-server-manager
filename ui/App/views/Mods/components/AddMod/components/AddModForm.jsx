@@ -35,7 +35,11 @@ const AddModForm = ({setIsFactorioAuthenticated, fuse, refetchInstalledMods}) =>
         if (typeof fuse != "undefined") {
             setHoveredMod(0)
             clearTimeout(autocomplete)
-            setAutocomplete(setTimeout(() => setSuggestedMods(fuse.search(mod || '')), 200));
+            if (!mod) {
+                setSuggestedMods([]);
+                return;
+            }
+            setAutocomplete(setTimeout(() => setSuggestedMods(fuse.search(mod)), 200));
         }
     };
 
@@ -65,7 +69,7 @@ const AddModForm = ({setIsFactorioAuthenticated, fuse, refetchInstalledMods}) =>
 
     const install = async release => {
         return modsResource.portal
-            .install(release.download_url, release.file_name, selectedMod.item.name)
+            .installWithDeps(release.download_url, release.file_name, selectedMod.item.name)
             .then(refetchInstalledMods)
     }
 
@@ -109,7 +113,7 @@ const AddModForm = ({setIsFactorioAuthenticated, fuse, refetchInstalledMods}) =>
                     </div>
                 }
                 {suggestedMods.length > 0 &&
-                    <ul className="bg-white text-black h-64 overflow-y-scroll absolute bottom-0 left-0 w-full -mb-64">
+                    <ul className="bg-white text-black h-64 overflow-y-scroll absolute top-full left-0 w-full z-50 shadow-lg border border-gray-300">
                         {suggestedMods.map((mod, index) => <li className={"px-2 py-1 cursor-pointer" + (hoveredMod === index ? " bg-blue-light" : "")} onMouseEnter={() => setHoveredMod(index)} onClick={() => selectMod(mod)} key={index}>{mod.item.title}</li>)}
                     </ul>
                 }

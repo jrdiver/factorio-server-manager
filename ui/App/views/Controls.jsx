@@ -3,6 +3,7 @@ import Panel from "../components/Panel";
 import Button from "../components/Button";
 import server from "../../api/resources/server";
 import savesResource from "../../api/resources/saves";
+import modsResource from "../../api/resources/mods";
 import {useForm} from "react-hook-form";
 import Select from "../components/Select";
 import Input from "../components/Input";
@@ -16,8 +17,12 @@ const Controls = ({serverStatus, refreshServerStatus}) => {
     const [isStopping, setIsStopping] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
     const [isKilling, setIsKilling] = useState(false);
+    // modWarnings: [{type: 'missing'|'disabled'|'version', name, saveVer, instVer, checked}]
+    const [modWarnings, setModWarnings] = useState([]);
+    const [isSyncing, setIsSyncing] = useState(false);
 
-    const { handleSubmit, reset, register, formState: {errors} } = useForm();
+    const { handleSubmit, reset, register, watch, formState: {errors} } = useForm();
+    const selectedSave = watch('save');
 
     const startServer = async (data) => {
         setIsStarting(true);
@@ -53,6 +58,78 @@ const Controls = ({serverStatus, refreshServerStatus}) => {
     useEffect(() => {
         refreshServerStatus();
     }, []);
+
+    const checkModMismatches = (saveName) => {
+        if (!saveName) { setModWarnings([]); return; }
+        Promise.all([
+            savesResource.mods(saveName),
+            modsResource.installed()
+        ]).then(([saveHeader, installedData]) => {
+            const saveMods = saveHeader.mods || [];
+            // installed() returns the array directly (not wrapped in {mods:[...]})
+            const installedMods = Array.isArray(installedData) ? installedData : [];
+            const skipMods = new Set(['base', 'quality', 'elevated-rails', 'space-age']);
+            const warnings = [];
+            for (const saveMod of saveMods) {
+                if (skipMods.has(saveMod.name)) continue;
+                const installed = installedMods.find(m => m.name === saveMod.name);
+                const saveVer = saveMod.version.split('.').slice(0, 3).join('.');
+                if (!installed) {
+                    warnings.push({type: 'missing', name: saveMod.name, saveVer, instVer: null, checked: true});
+                } else if (!installed.enabled) {
+                    warnings.push({type: 'disabled', name: saveMod.name, saveVer, instVer: null, checked: true});
+                } else {
+                    const instVer = installed.version.split('.').slice(0, 3).join('.');
+                    if (saveVer !== instVer) {
+                        warnings.push({type: 'version', name: saveMod.name, saveVer, instVer, checked: true});
+                    }
+                }
+            }
+            setModWarnings(warnings);
+        }).catch(() => {});
+    };
+
+    const toggleWarning = (name) =>
+        setModWarnings(prev => prev.map(w => w.name === name ? {...w, checked: !w.checked} : w));
+
+    const toggleAllWarnings = (checked) =>
+        setModWarnings(prev => prev.map(w => ({...w, checked})));
+
+    const syncSelected = async () => {
+        const selected = modWarnings.filter(w => w.checked);
+        if (selected.length === 0) return;
+        setIsSyncing(true);
+        for (const w of selected) {
+            try {
+                if (w.type === 'disabled') {
+                    await modsResource.toggle(w.name);
+                } else {
+                    // missing or version mismatch — need portal
+                    const info = await modsResource.portal.info(w.name);
+                    const releases = info.releases || [];
+                    const release = releases.find(r => r.version.split('.').slice(0, 3).join('.') === w.saveVer);
+                    if (!release) {
+                        window.flash(`No portal release found for ${w.name} v${w.saveVer}`, 'red');
+                        continue;
+                    }
+                    if (w.type === 'version') {
+                        await modsResource.delete(w.name);
+                    }
+                    await modsResource.portal.installWithDeps(release.download_url, release.file_name, w.name);
+                }
+            } catch (e) {
+                window.flash(`Failed to sync ${w.name}: ${e?.message || 'unknown error'}`, 'red');
+            }
+        }
+        setIsSyncing(false);
+        checkModMismatches(selectedSave);
+    };
+
+    // Check for mod mismatches when selected save changes
+    useEffect(() => {
+        if (!selectedSave || serverStatus?.running) { setModWarnings([]); return; }
+        checkModMismatches(selectedSave);
+    }, [selectedSave]);
 
     useEffect(() => {
         savesResource.list(true)
@@ -155,6 +232,58 @@ const Controls = ({serverStatus, refreshServerStatus}) => {
                 </div>
             }
         />
+        {modWarnings.length > 0 &&
+            <div className="mt-2 p-3 border rounded text-sm" style={{backgroundColor:'#fffbeb', borderColor:'#f59e0b', color:'#92400e'}}>
+                <div className="font-bold mb-2">⚠ Mod mismatch — select items to sync:</div>
+                <table className="w-full mb-2">
+                    <thead>
+                        <tr className="text-left border-b" style={{borderColor:'#f59e0b'}}>
+                            <th className="pb-1 pr-2">
+                                <input type="checkbox"
+                                    checked={modWarnings.every(w => w.checked)}
+                                    onChange={e => toggleAllWarnings(e.target.checked)}
+                                />
+                            </th>
+                            <th className="pb-1 pr-4">Mod</th>
+                            <th className="pb-1 pr-4">Issue</th>
+                            <th className="pb-1">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {modWarnings.map(w => (
+                            <tr key={w.name} className="border-b border-dashed" style={{borderColor:'#fcd34d'}}>
+                                <td className="py-1 pr-2">
+                                    <input type="checkbox" checked={w.checked} onChange={() => toggleWarning(w.name)} />
+                                </td>
+                                <td className="py-1 pr-4 font-mono">{w.name}</td>
+                                <td className="py-1 pr-4">
+                                    {w.type === 'missing'  && <span className="font-semibold text-red-700">Not installed</span>}
+                                    {w.type === 'disabled' && <span className="font-semibold text-yellow-700">Disabled</span>}
+                                    {w.type === 'version'  && <span className="font-semibold text-orange-700">Wrong version</span>}
+                                </td>
+                                <td className="py-1 text-xs">
+                                    {w.type === 'missing'  && `Need v${w.saveVer}`}
+                                    {w.type === 'disabled' && `Enable v${w.saveVer}`}
+                                    {w.type === 'version'  && `installed: v${w.instVer} → need v${w.saveVer}`}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                {modWarnings.some(w => w.checked && w.type !== 'disabled') &&
+                    <p className="text-xs mb-2 italic">⚠ Downloading mods requires portal credentials (set in Mods → Add Mod).</p>
+                }
+                <Button
+                    onClick={syncSelected}
+                    isLoading={isSyncing}
+                    isDisabled={!modWarnings.some(w => w.checked) || isSyncing}
+                    size="sm"
+                    type="warning"
+                >
+                    Sync Selected
+                </Button>
+            </div>
+        }
         </form>
     )
 };

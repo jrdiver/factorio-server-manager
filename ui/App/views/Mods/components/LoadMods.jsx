@@ -17,6 +17,7 @@ const LoadMods = ({refreshMods}) => {
     const [isDisabled, setIsDisabled] = useState(true);
     const [isFactorioAuthenticated, setIsFactorioAuthenticated] = useState(false);
     const [loadModsData, setLoadModsData] = useState(undefined);
+    const [syncStatus, setSyncStatus] = useState('');
 
     useEffect(() => {
         (async () => {
@@ -37,19 +38,38 @@ const LoadMods = ({refreshMods}) => {
     }
 
     const loadMods = async data => {
-        await modResource.deleteAll();
-        const {mods} = await savesResource.mods(data.save).catch(() => {
+        // Fetch the save's mod list to check what's needed.
+        setSyncStatus('Reading save file…');
+        const saveHeader = await savesResource.mods(data.save).catch(() => {
             setIsLoading(false);
             setLoadModsData(undefined);
+            setSyncStatus('');
         });
+        if (!saveHeader) return;
 
-        await modResource.portal.installMultiple(mods)
+        if (!saveHeader.mods || saveHeader.mods.length === 0) {
+            window.flash(`Save file "${data.save}" returned no mods — refusing to wipe current mods.`, "red");
+            setIsLoading(false);
+            setLoadModsData(undefined);
+            setSyncStatus('');
+            return;
+        }
+
+        const total = saveHeader.mods.length;
+        setSyncStatus(`Syncing ${total} mods from save…`);
+
+        await modResource.portal.installMultiple(saveHeader.mods)
             .then(() => {
+                window.flash(`Mods synced from save file ${data.save}.`, "green");
+            })
+            .catch(() => {
+                // The Axios interceptor already flashed the real error from the server.
+            })
+            .finally(() => {
                 refreshMods();
-                window.flash(`Mods are loaded from save file ${data.save}.`, "green");
-            }).finally(() => {
                 setIsLoading(false);
                 setLoadModsData(undefined);
+                setSyncStatus('');
             });
     }
 
@@ -66,9 +86,10 @@ const LoadMods = ({refreshMods}) => {
                 }))}
             />
             <Button isSubmit={true} isDisabled={isDisabled} isLoading={isLoading}>Load</Button>
+            {syncStatus && <p className="mt-2 text-sm text-gray-400">{syncStatus}</p>}
             <ConfirmDialog
                 title="Load Mods from Save"
-                content={`Loading the Mods from Save "${loadModsData?.save}" will remove all currently installed Mods.`}
+                content={`Syncing mods to match save "${loadModsData?.save}": mods not in the save will be removed, and any missing or outdated mods will be downloaded. Already-installed mods at the correct version will be skipped.`}
                 isOpen={loadModsData !== undefined}
                 close={() => {
                     setIsLoading(false);

@@ -22,27 +22,52 @@ type LoginSuccessResponse struct {
 	UserKey []string `json:""`
 }
 
+// clearDirectory removes all entries inside dir without removing the directory itself.
+// This is necessary for Docker volume mount points which cannot be removed with os.RemoveAll.
+func clearDirectory(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func DeleteAllMods() error {
-	var err error
 	config := bootstrap.GetConfig()
-	modsDirInfo, err := os.Stat(config.FactorioModsDir)
-	if err != nil {
-		log.Printf("error getting stats of FactorioModsDir: %s", err)
+	modListPath := filepath.Join(config.FactorioModsDir, "mod-list.json")
+
+	// Built-in / DLC mods have no zip file but live in mod-list.json.
+	// Preserve their enabled state so they survive the wipe.
+	builtinNames := map[string]bool{
+		"base": true, "quality": true, "elevated-rails": true, "space-age": true,
+	}
+	var preserved ModSimpleList
+	if data, readErr := ioutil.ReadFile(modListPath); readErr == nil {
+		var existing ModSimpleList
+		if json.Unmarshal(data, &existing) == nil {
+			for _, m := range existing.Mods {
+				if builtinNames[m.Name] {
+					preserved.Mods = append(preserved.Mods, m)
+				}
+			}
+		}
+	}
+
+	if err := clearDirectory(config.FactorioModsDir); err != nil {
+		log.Printf("deleting mods from FactorioModsDir failed: %s", err)
 		return err
 	}
 
-	modsDirPerm := modsDirInfo.Mode().Perm()
-
-	err = os.RemoveAll(config.FactorioModsDir)
-	if err != nil {
-		log.Printf("removing FactorioModsDir failed: %s", err)
-		return err
-	}
-
-	err = os.Mkdir(config.FactorioModsDir, modsDirPerm)
-	if err != nil {
-		log.Printf("error recreating modPackDir: %s", err)
-		return err
+	// Write back preserved built-in entries (if any were found).
+	if len(preserved.Mods) > 0 {
+		if data, err := json.MarshalIndent(preserved, "", "    "); err == nil {
+			_ = ioutil.WriteFile(modListPath, data, 0664)
+		}
 	}
 
 	return nil

@@ -216,60 +216,81 @@ func (modPackMap *ModPackMap) DeleteModPack(modPackName string) error {
 }
 
 func (modPack *ModPack) LoadModPack() error {
-	var err error
 	config := bootstrap.GetConfig()
-	//get filemode, so it can be restored
-	fileInfo, err := os.Stat(config.FactorioModsDir)
-	if err != nil {
-		log.Printf("error on trying to save folder infos: %s", err)
-		return err
-	}
-	folderMode := fileInfo.Mode()
 
-	//clean factorio mod directory
-	err = os.RemoveAll(config.FactorioModsDir)
-	if err != nil {
-		log.Printf("error on removing the factorio mods dir: %s", err)
-		return err
-	}
-
-	err = os.Mkdir(config.FactorioModsDir, folderMode)
-	if err != nil {
-		log.Printf("error on recreating mod dir: %s", err)
-		return err
-	}
-
-	//copy the modpack folder to the normal mods directory
-	err = filepath.Walk(modPack.Mods.ModInfoList.Destination, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		newFile, err := os.Create(filepath.Join(config.FactorioModsDir, info.Name()))
+	// Build filename→path map of everything in the modpack directory.
+	packFiles := make(map[string]string)
+	err := filepath.Walk(modPack.Mods.ModInfoList.Destination, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Printf("error on creting mod file: %s", err)
 			return err
 		}
-		defer newFile.Close()
-
-		oldFile, err := os.Open(path)
-		if err != nil {
-			log.Printf("error on opening modFile: %s", err)
-			return err
+		if !info.IsDir() {
+			packFiles[info.Name()] = path
 		}
-		defer oldFile.Close()
-
-		_, err = io.Copy(newFile, oldFile)
-		if err != nil {
-			log.Printf("error on copying data to the new file: %s", err)
-			return err
-		}
-
 		return nil
 	})
 	if err != nil {
-		log.Printf("error on copying the mod pack: %s", err)
+		log.Printf("error reading modpack directory: %s", err)
 		return err
 	}
 
+	// Snapshot the current mods directory contents.
+	modsEntries, err := os.ReadDir(config.FactorioModsDir)
+	if err != nil {
+		log.Printf("error reading mods directory: %s", err)
+		return err
+	}
+
+	// Build a set of files currently present in the mods directory and remove
+	// any that are not part of the modpack (stale mods from a previous load).
+	existingFiles := make(map[string]bool)
+	for _, entry := range modsEntries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		existingFiles[name] = true
+		if _, inPack := packFiles[name]; !inPack {
+			if removeErr := os.Remove(filepath.Join(config.FactorioModsDir, name)); removeErr != nil {
+				log.Printf("error removing stale file %s: %s", name, removeErr)
+				return removeErr
+			}
+			delete(existingFiles, name)
+		}
+	}
+
+	// Copy files from the modpack that are missing or need refreshing.
+	// Zip files are skipped when a file with the same name already exists
+	// (the filename encodes the version, so identical names mean identical content).
+	// Non-zip files (mod-list.json, mod-settings.dat, etc.) are always overwritten
+	// so that modpack configuration is applied.
+	for filename, srcPath := range packFiles {
+		if filepath.Ext(filename) == ".zip" && existingFiles[filename] {
+			continue
+		}
+		dstPath := filepath.Join(config.FactorioModsDir, filename)
+		if copyErr := copyFile(srcPath, dstPath); copyErr != nil {
+			log.Printf("error copying %s to mods directory: %s", filename, copyErr)
+			return copyErr
+		}
+	}
+
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }

@@ -2,7 +2,7 @@ import Mod from "./Mod";
 import React from "react";
 
 
-const ModList = ({mods, factorioVersion, updateMod, toggleMod, deleteMod, addUpdatableMod = null, disabled = false}) => {
+const ModList = ({mods, factorioVersion, updateMod, toggleMod, deleteMod, addUpdatableMod = null, disabled = false, selectedModNames = {}, toggleModSelection = () => {}}) => {
 
     return (
         <table className="w-full">
@@ -27,6 +27,8 @@ const ModList = ({mods, factorioVersion, updateMod, toggleMod, deleteMod, addUpd
                              addUpdatableMod={addUpdatableMod}
                              factorioVersion={factorioVersion}
                              disabled={disabled}
+                             isSelected={!!selectedModNames[mod.name]}
+                             onToggleSelect={() => toggleModSelection(mod.name)}
                         />
                 )
             }
