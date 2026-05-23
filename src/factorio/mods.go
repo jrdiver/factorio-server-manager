@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,7 +47,7 @@ func DeleteAllMods() error {
 		"base": true, "quality": true, "elevated-rails": true, "space-age": true,
 	}
 	var preserved ModSimpleList
-	if data, readErr := ioutil.ReadFile(modListPath); readErr == nil {
+	if data, readErr := os.ReadFile(modListPath); readErr == nil {
 		var existing ModSimpleList
 		if json.Unmarshal(data, &existing) == nil {
 			for _, m := range existing.Mods {
@@ -66,7 +66,7 @@ func DeleteAllMods() error {
 	// Write back preserved built-in entries (if any were found).
 	if len(preserved.Mods) > 0 {
 		if data, err := json.MarshalIndent(preserved, "", "    "); err == nil {
-			_ = ioutil.WriteFile(modListPath, data, 0664)
+			_ = os.WriteFile(modListPath, data, 0664)
 		}
 	}
 
@@ -139,7 +139,7 @@ func ModStartUp() {
 			}
 			newJson, _ := json.Marshal(modSimpleList)
 
-			err = ioutil.WriteFile(filepath.Join(modSimpleList.Destination, "mod-list.json"), newJson, 0664)
+			err = os.WriteFile(filepath.Join(modSimpleList.Destination, "mod-list.json"), newJson, 0664)
 			if err != nil {
 				log.Printf("error when writing new mod-list: %s", err)
 				return err
@@ -165,7 +165,7 @@ func ModStartUp() {
 				}
 				defer modFileRc.Close()
 
-				modFileBuffer, err := ioutil.ReadAll(modFileRc)
+				modFileBuffer, err := io.ReadAll(modFileRc)
 				if err != nil {
 					log.Printf("error reading mod_file_rc: %s", err)
 					return err

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/gorilla/securecookie"
 	"github.com/jessevdk/go-flags"
@@ -216,8 +215,6 @@ func (config *Config) loadServerConfig() {
 
 // Returns random port to use for rcon connection
 func randomPort() int {
-	// rand needs to be initialized, else we always get the same number
-	rand.Seed(time.Now().UnixNano())
 	// get a random number between 40000 and 45000
 	return rand.Intn(5000) + 40000
 }

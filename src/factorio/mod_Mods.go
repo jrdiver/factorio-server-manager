@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -209,7 +208,7 @@ func (mods *Mods) UploadMod(file multipart.File, header *multipart.FileHeader) e
 		return errors.New("the uploaded file wasn't a zip-file")
 	}
 
-	fileByteArray, err := ioutil.ReadAll(file)
+	fileByteArray, err := io.ReadAll(file)
 	if err != nil {
 		log.Printf("error reading file: %s", err)
 		return err

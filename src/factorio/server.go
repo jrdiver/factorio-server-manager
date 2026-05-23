@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -168,7 +167,7 @@ func NewFactorioServer() (err error) {
 
 	//Load baseMod version
 	baseModInfoFile := filepath.Join(config.FactorioBaseModDir, "info.json")
-	bmifBa, err := ioutil.ReadFile(baseModInfoFile)
+	bmifBa, err := os.ReadFile(baseModInfoFile)
 	if err != nil {
 		log.Printf("couldn't open baseMods info.json: %s", err)
 		return
@@ -186,11 +185,11 @@ func NewFactorioServer() (err error) {
 	if (server.Version.Greater(Version{0, 17, 0})) {
 		if _, err = os.Stat(config.FactorioAdminFile); os.IsNotExist(err) {
 			//save empty admins-file
-			err = ioutil.WriteFile(config.FactorioAdminFile, []byte("[]"), 0664)
+			err = os.WriteFile(config.FactorioAdminFile, []byte("[]"), 0664)
 			server.Settings["admins"] = make([]string, 0)
 		} else {
 			var data []byte
-			data, err = ioutil.ReadFile(config.FactorioAdminFile)
+			data, err = os.ReadFile(config.FactorioAdminFile)
 			if err != nil {
 				log.Printf("Error loading FactorioAdminFile: %s", err)
 				return
@@ -228,7 +227,7 @@ func (server *Server) Run() error {
 	if err != nil {
 		log.Println("Failed to marshal FactorioServerSettings: ", err)
 	} else {
-		ioutil.WriteFile(config.SettingsFile, data, 0644)
+		os.WriteFile(config.SettingsFile, data, 0644)
 	}
 
 	saves, err := ListSaves()

@@ -3,7 +3,6 @@ package factorio
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -114,7 +113,7 @@ func (modPackMap *ModPackMap) CreateModPack(modPackName string) error {
 		return err
 	}
 
-	files, err := ioutil.ReadDir(config.FactorioModsDir)
+	files, err := os.ReadDir(config.FactorioModsDir)
 	if err != nil {
 		log.Printf("error on reading the factorio mods dir: %s", err)
 		return err

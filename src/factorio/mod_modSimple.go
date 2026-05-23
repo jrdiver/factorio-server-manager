@@ -3,7 +3,6 @@ package factorio
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"log"
 	"os"
 )
@@ -37,7 +36,7 @@ func newModSimpleList(destination string) (ModSimpleList, error) {
 func (modSimpleList *ModSimpleList) listInstalledMods() error {
 	var err error
 
-	file, err := ioutil.ReadFile(modSimpleList.Destination + "/mod-list.json")
+	file, err := os.ReadFile(modSimpleList.Destination + "/mod-list.json")
 	if os.IsNotExist(err) {
 		log.Println("no mod-list.json found ... create new one ...")
 
@@ -75,7 +74,7 @@ func (modSimpleList *ModSimpleList) saveModInfoJson() error {
 	//build json of current state
 	newJson, _ := json.MarshalIndent(modSimpleList, "", "    ")
 
-	err = ioutil.WriteFile(modSimpleList.Destination+"/mod-list.json", newJson, 0664)
+	err = os.WriteFile(modSimpleList.Destination+"/mod-list.json", newJson, 0664)
 	if err != nil {
 		log.Printf("error when writing new mod-list: %s", err)
 		return err

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -174,7 +173,7 @@ func (modInfo *ModInfo) getModInfo(reader *zip.Reader) error {
 				return err
 			}
 
-			byteArray, err := ioutil.ReadAll(rc)
+			byteArray, err := io.ReadAll(rc)
 			if err != nil {
 				log.Fatal(err)
 				return err

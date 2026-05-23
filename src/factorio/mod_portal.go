@@ -3,7 +3,7 @@ package factorio
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,7 +42,7 @@ func ModPortalList() (interface{}, error, int) {
 	}
 	defer resp.Body.Close()
 
-	text, err := ioutil.ReadAll(resp.Body)
+	text, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "error", err, http.StatusInternalServerError
 	}
@@ -75,7 +75,7 @@ func ModPortalModDetails(modId string) (ModPortalStruct, error, int) {
 	}
 	defer resp.Body.Close()
 
-	text, err := ioutil.ReadAll(resp.Body)
+	text, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return mod, err, http.StatusInternalServerError
 	}
@@ -117,7 +117,7 @@ func FactorioLogin(username string, password string) (error, int) {
 
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err, http.StatusInternalServerError
 	}
@@ -183,7 +183,7 @@ func ModPortalModDetailsFull(modId string) (ModPortalFullStruct, error, int) {
 	}
 	defer resp.Body.Close()
 
-	text, err := ioutil.ReadAll(resp.Body)
+	text, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return mod, err, http.StatusInternalServerError
 	}

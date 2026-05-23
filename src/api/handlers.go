@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -46,7 +45,7 @@ func ReadRequestBody(w http.ResponseWriter, r *http.Request) (body []byte, resp 
 		return
 	}
 
-	body, err = ioutil.ReadAll(r.Body)
+	body, err = io.ReadAll(r.Body)
 	if err != nil {
 		resp = fmt.Sprintf("%s: %s", readHttpBodyError, err)
 		log.Println(resp)
@@ -767,7 +766,7 @@ func UpdateServerSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	config := bootstrap.GetConfig()
-	err = ioutil.WriteFile(config.SettingsFile, settings, 0644)
+	err = os.WriteFile(config.SettingsFile, settings, 0644)
 	if err != nil {
 		resp = fmt.Sprintf("Failed to save server settings: %v\n", err)
 		log.Println(resp)
@@ -786,7 +785,7 @@ func UpdateServerSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = ioutil.WriteFile(config.FactorioAdminFile, admins, 0664)
+		err = os.WriteFile(config.FactorioAdminFile, admins, 0664)
 		if err != nil {
 			resp = fmt.Sprintf("Failed to save admins: %s", err)
 			log.Println(resp)
