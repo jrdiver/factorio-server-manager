@@ -17,7 +17,10 @@ const Select = ({register, options, className = "", defaultValue = "", disabled 
             {...register}
             value={value}
             disabled={disabled}
-            onChange={optionElement => setValue(optionElement.target.value)}
+            onChange={e => {
+                setValue(e.target.value);
+                register.onChange(e);
+            }}
         >
             {options.map(option => <option value={option.value} key={option.value}>{option.name}</option>)}
         </select>

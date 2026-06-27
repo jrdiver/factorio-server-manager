@@ -43,7 +43,10 @@ const Mods = ({serverStatus}) => {
     const fetchInstalledMods = () => {
         modsResource.installed()
             .then(mods => setInstalledMods(
-                [...mods].sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}))
+                [...mods].sort((a, b) => {
+                    if (a.built_in !== b.built_in) return a.built_in ? -1 : 1;
+                    return a.name.localeCompare(b.name, undefined, {sensitivity: 'base'});
+                })
             ));
     };
 

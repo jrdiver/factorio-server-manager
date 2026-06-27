@@ -28,10 +28,36 @@ random_pass() {
 }
 
 install_game() {
-    curl --location "https://www.factorio.com/get-download/${FACTORIO_VERSION}/headless/linux64" \
-         --output /tmp/factorio_${FACTORIO_VERSION}.tar.xz
-    tar -xf /tmp/factorio_${FACTORIO_VERSION}.tar.xz
-    rm /tmp/factorio_${FACTORIO_VERSION}.tar.xz
+    local should_update=false
+    
+    if [ "${FORCE_UPDATE}" = "true" ]; then
+        should_update=true
+    elif [ ! -f "/opt/factorio/bin/x64/factorio" ]; then
+        should_update=true
+    elif [ ! -f "/opt/factorio/version_installed" ]; then
+        should_update=true
+    else
+        local installed_version=$(cat /opt/factorio/version_installed)
+        if [ "${installed_version}" != "${FACTORIO_VERSION}" ]; then
+            should_update=true
+        fi
+    fi
+    
+    if [ "${should_update}" = "true" ]; then
+        echo "Installing or updating Factorio to version ${FACTORIO_VERSION}..."
+        curl --location "https://www.factorio.com/get-download/${FACTORIO_VERSION}/headless/linux64" \
+             --output /tmp/factorio_${FACTORIO_VERSION}.tar.xz
+        
+        # Remove old directories to avoid stale data conflicts when updating
+        rm -rf /opt/factorio/bin /opt/factorio/data /opt/factorio/doc-html
+        
+        tar -xf /tmp/factorio_${FACTORIO_VERSION}.tar.xz
+        rm /tmp/factorio_${FACTORIO_VERSION}.tar.xz
+        
+        echo "${FACTORIO_VERSION}" > /opt/factorio/version_installed
+    else
+        echo "Factorio is already installed (version flag: ${FACTORIO_VERSION}). Set FORCE_UPDATE=true to force re-download."
+    fi
 }
 
 init_config

@@ -4,6 +4,7 @@ WORKDIR /build
 COPY package.json webpack.config.js tailwind.config.js ./
 COPY ui/ ./ui/
 COPY app/index.html ./app/index.html
+COPY app/favicon.ico ./app/favicon.ico
 RUN npm install && npm run build
 
 # Stage 2: Build Go binary

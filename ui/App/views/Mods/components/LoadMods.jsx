@@ -18,6 +18,7 @@ const LoadMods = ({refreshMods}) => {
     const [isFactorioAuthenticated, setIsFactorioAuthenticated] = useState(false);
     const [loadModsData, setLoadModsData] = useState(undefined);
     const [syncStatus, setSyncStatus] = useState('');
+    const [syncProgress, setSyncProgress] = useState(null); // {current, total} or null
 
     useEffect(() => {
         (async () => {
@@ -40,6 +41,7 @@ const LoadMods = ({refreshMods}) => {
     const loadMods = async data => {
         // Fetch the save's mod list to check what's needed.
         setSyncStatus('Reading save file…');
+        setSyncProgress(null);
         const saveHeader = await savesResource.mods(data.save).catch(() => {
             setIsLoading(false);
             setLoadModsData(undefined);
@@ -55,22 +57,54 @@ const LoadMods = ({refreshMods}) => {
             return;
         }
 
-        const total = saveHeader.mods.length;
-        setSyncStatus(`Syncing ${total} mods from save…`);
+        // Phase 1: let the backend delete unwanted mods and return what needs downloading.
+        setSyncStatus('Calculating changes…');
+        let toInstall;
+        try {
+            toInstall = await modResource.portal.syncPrepare(saveHeader.mods);
+        } catch {
+            setIsLoading(false);
+            setLoadModsData(undefined);
+            setSyncStatus('');
+            return;
+        }
 
-        await modResource.portal.installMultiple(saveHeader.mods)
-            .then(() => {
-                window.flash(`Mods synced from save file ${data.save}.`, "green");
-            })
-            .catch(() => {
-                // The Axios interceptor already flashed the real error from the server.
-            })
-            .finally(() => {
-                refreshMods();
-                setIsLoading(false);
-                setLoadModsData(undefined);
-                setSyncStatus('');
-            });
+        if (toInstall.length === 0) {
+            window.flash(`Mods already match save file ${data.save} — nothing to download.`, "green");
+            refreshMods();
+            setIsLoading(false);
+            setLoadModsData(undefined);
+            setSyncStatus('');
+            return;
+        }
+
+        // Phase 2: install each mod one-by-one so we can show progress.
+        const total = toInstall.length;
+        setSyncProgress({current: 0, total});
+        setSyncStatus('');
+
+        let failed = false;
+        for (let i = 0; i < toInstall.length; i++) {
+            const mod = toInstall[i];
+            setSyncProgress({current: i, total});
+            try {
+                await modResource.portal.installWithDeps(mod.downloadUrl, mod.fileName, mod.name);
+            } catch {
+                failed = true;
+                break;
+            }
+        }
+
+        if (!failed) {
+            setSyncProgress({current: total, total});
+            window.flash(`Mods synced from save file ${data.save}.`, "green");
+        }
+
+        refreshMods();
+        setIsLoading(false);
+        setLoadModsData(undefined);
+        setSyncStatus('');
+        setSyncProgress(null);
     }
 
     return isFactorioAuthenticated
@@ -87,6 +121,9 @@ const LoadMods = ({refreshMods}) => {
             />
             <Button isSubmit={true} isDisabled={isDisabled} isLoading={isLoading}>Load</Button>
             {syncStatus && <p className="mt-2 text-sm text-gray-400">{syncStatus}</p>}
+            {syncProgress && (
+                <p className="mt-2 text-sm text-white">{syncProgress.current}/{syncProgress.total} installed</p>
+            )}
             <ConfirmDialog
                 title="Load Mods from Save"
                 content={`Syncing mods to match save "${loadModsData?.save}": mods not in the save will be removed, and any missing or outdated mods will be downloaded. Already-installed mods at the correct version will be skipped.`}

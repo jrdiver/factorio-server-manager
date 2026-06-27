@@ -307,6 +307,12 @@ var apiRoutes = Routes{
 		ModPortalLogoutHandler,
 		false,
 	}, {
+		"ModPortalSyncPrepare",
+		"POST",
+		"/mods/portal/sync/prepare",
+		ModPortalSyncPrepareHandler,
+		true,
+	}, {
 		"ModPortalInstallMultiple",
 		"POST",
 		"/mods/portal/install/multiple",

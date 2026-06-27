@@ -197,6 +197,98 @@ func ModPortalLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	resp = false
 }
 
+// ModPortalSyncPrepareHandler removes mods not in the save and returns the list of
+// mods that need to be (re)downloaded so the caller can install them with progress.
+func ModPortalSyncPrepareHandler(w http.ResponseWriter, r *http.Request) {
+	var err error
+	var resp interface{}
+
+	defer func() {
+		WriteResponse(w, resp)
+	}()
+
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+
+	var data []struct {
+		Name    string           `json:"name"`
+		Version factorio.Version `json:"version"`
+	}
+	resp, err = ReadFromRequestBody(w, r, &data)
+	if err != nil {
+		return
+	}
+
+	modList, resp, err := CreateNewMods(w)
+	if err != nil {
+		return
+	}
+
+	skipMods := map[string]bool{
+		"base": true, "quality": true, "elevated-rails": true, "space-age": true,
+	}
+
+	// Snapshot: name → filename currently on disk.
+	installedByName := make(map[string]string)
+	for _, m := range modList.ModInfoList.Mods {
+		installedByName[m.Name] = m.FileName
+	}
+
+	// Build wanted set (excluding builtins).
+	wantedNames := make(map[string]bool)
+	for _, datum := range data {
+		if !skipMods[datum.Name] {
+			wantedNames[datum.Name] = true
+		}
+	}
+
+	// Delete mods not in the save.
+	for name := range installedByName {
+		if !wantedNames[name] {
+			if delErr := modList.DeleteMod(name); delErr != nil {
+				log.Printf("SyncPrepare: could not remove unwanted mod %s: %s", name, delErr)
+			}
+		}
+	}
+
+	// Build the install list: mods not yet at the correct version.
+	type ModToInstall struct {
+		Name        string `json:"name"`
+		DownloadURL string `json:"downloadUrl"`
+		FileName    string `json:"fileName"`
+	}
+	var toInstall []ModToInstall
+
+	for _, datum := range data {
+		if skipMods[datum.Name] {
+			continue
+		}
+		details, detErr, statusCode := factorio.ModPortalModDetails(datum.Name)
+		if detErr != nil || statusCode != http.StatusOK {
+			log.Printf("SyncPrepare: could not fetch portal details for %s (%d): %s – skipping", datum.Name, statusCode, detErr)
+			continue
+		}
+		for _, release := range details.Releases {
+			if release.Version[0] == datum.Version[0] &&
+				release.Version[1] == datum.Version[1] &&
+				release.Version[2] == datum.Version[2] {
+				if installedByName[datum.Name] != release.FileName {
+					toInstall = append(toInstall, ModToInstall{
+						Name:        details.Name,
+						DownloadURL: release.DownloadURL,
+						FileName:    release.FileName,
+					})
+				}
+				break
+			}
+		}
+	}
+
+	if toInstall == nil {
+		toInstall = []ModToInstall{}
+	}
+	resp = toInstall
+}
+
 func ModPortalInstallMultipleHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var resp interface{}
